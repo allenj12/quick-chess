@@ -33,7 +33,8 @@
     init-pieces init-colors)})
 
 (defonce app-state (r/atom init-state))
-(swap! app-state assoc-in [:board 7 4 :color] "#4286f4")
+#_(swap! app-state assoc :height 500)
+#_(swap! app-state assoc-in [:board 7 4 :color] "#4286f4")
 #_(reset! app-state init-state)
 
 (defn board-style
@@ -61,6 +62,24 @@
                (min (:height data) (:width data))
                0.07)})
 
+(defn slider-view
+  "adjusts the size of the board"
+  [state]
+  [:input {:type "range" :value (:width state) :min 250 :max 700
+           :style {:width "200px"}
+           :on-change (fn [e]
+                        (let [val (.-target.value e)]
+                          (swap! app-state assoc :width val :height val)))}])
+
+(defn input-view
+  "input of commands through strings"
+  [state value]
+  [:input {:type "text"
+           :value @value
+           :on-change (fn [e]
+                        (let [c (-> e .-target .-value)]
+                          (reset! value c)))}])
+
 (defn board-view
   "the board"
   [state]
@@ -78,8 +97,13 @@
 (defn app-view
   "main component of our app"
   []
-  [:div
-   [board-view @app-state]])
+  (let [value (r/atom "")]
+       (fn []
+         [:div
+          [:div "Size:"]
+          [slider-view @app-state]
+          [board-view @app-state]
+          [input-view @app-state value]])))
 
 ;; -------------------------
 ;; Initialize app
