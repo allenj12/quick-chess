@@ -1,6 +1,6 @@
 (defproject quick-chess "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
+  :description "A simple browser chess app written in clojurescript and reagent."
+  :url "https://github.com/allenj12/quick-chess"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
