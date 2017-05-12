@@ -25,8 +25,7 @@
   creates the string mapping"
   [rows cols strings]
   (zipmap
-   (map char
-        strings)
+   strings
    (for [y rows
          x cols]
      [y x])))
@@ -124,12 +123,11 @@
 (defn app-view
   "main component of our app"
   []
-  (fn []
-    [:div
-     [:div "Size:"]
-     [slider-view @app-state]
-     [board-view @app-state]
-     [input-view @app-state]]))
+  [:div
+   [:div "Size:"]
+   [slider-view @app-state]
+   [board-view @app-state]
+   [input-view @app-state]])
 
 ;; -------------------------
 ;; Initialize app
