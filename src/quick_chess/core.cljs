@@ -5,7 +5,7 @@
 
 (println (str "Reloaded: " (.toLocaleTimeString (js/Date.))))
 
-(def init-pieces
+(defonce init-pieces
   [[\u265C \u265E \u265D \u265B \u265A \u265D \u265E \u265C]
    [\u265F \u265F \u265F \u265F \u265F \u265F \u265F \u265F]
    ["" "" "" "" "" "" "" ""]
@@ -15,12 +15,23 @@
    [\u2659 \u2659 \u2659 \u2659 \u2659 \u2659 \u2659 \u2659]
    [\u2656 \u2658 \u2657 \u2655 \u2654 \u2657 \u2658 \u2656]])
 
-(def init-colors
+(defonce init-colors
   (vec
    (take 8 (cycle [(vec (take 8 (cycle '("#a3854b" "#d3d2cf"))))
                    (vec (take 8 (cycle '("#d3d2cf" "#a3854b"))))]))))
 
-(defonce init-state
+(defn string-mapping
+  "given a list of rows and cols and a string list
+  creates the string mapping"
+  [rows cols strings]
+  (zipmap
+   (map char
+        strings)
+   (for [y rows
+         x cols]
+     [y x])))
+
+(def init-state
   {:width 500
    :height 500
    :board
@@ -30,7 +41,20 @@
        (fn [piece color]
          {:piece piece :color color})
        row-pieces row-colors))
-    init-pieces init-colors)})
+    init-pieces init-colors)
+   :white-string-map (string-mapping
+                      (range 6 8)
+                      (range 8)
+                      (map char (range 97 113)))
+   :black-string-map (string-mapping
+                      (range 2)
+                      (range 8)
+                      (map char (range 97 113)))
+   :turn :white})
+
+(defonce black #{\u265F \u265C \u265E \u265D \u265B \u265A})
+
+(defonce white #{\u2659 \u2656 \u2658 \u2657 \u2655 \u2654})
 
 (defonce app-state (r/atom init-state))
 #_(swap! app-state assoc :height 500)
@@ -60,7 +84,7 @@
   {:text-align "center"
    :font-size (*
                (min (:height data) (:width data))
-               0.07)})
+               0.06)})
 
 (defn slider-view
   "adjusts the size of the board"
@@ -73,12 +97,14 @@
 
 (defn input-view
   "input of commands through strings"
-  [state value]
-  [:input {:type "text"
-           :value @value
-           :on-change (fn [e]
-                        (let [c (-> e .-target .-value)]
-                          (reset! value c)))}])
+  []
+  (let [value (r/atom "")]
+    (fn [state]
+      [:input {:type "text"
+               :value @value
+               :on-change (fn [e]
+                            (let [c (-> e .-target .-value)]
+                              (reset! value c)))}])))
 
 (defn board-view
   "the board"
@@ -90,20 +116,20 @@
                    (map-indexed
                     (fn [col-idx elem]
                       ^{:key col-idx} [:td {:style (td-style state (:color elem))}
-                                       [:div {:style (piece-style state)} (:piece elem)]])
+                                       [:div {:style (piece-style state)} (:piece elem)]
+                                       [:div {:style {:text-align "center"}} "_"]])
                     row)])
     (:board state))])
 
 (defn app-view
   "main component of our app"
   []
-  (let [value (r/atom "")]
-       (fn []
-         [:div
-          [:div "Size:"]
-          [slider-view @app-state]
-          [board-view @app-state]
-          [input-view @app-state value]])))
+  (fn []
+    [:div
+     [:div "Size:"]
+     [slider-view @app-state]
+     [board-view @app-state]
+     [input-view @app-state]]))
 
 ;; -------------------------
 ;; Initialize app
