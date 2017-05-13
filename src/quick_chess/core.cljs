@@ -41,14 +41,17 @@
          {:piece piece :color color})
        row-pieces row-colors))
     init-pieces init-colors)
-   :white-string-map (string-mapping
-                      (range 6 8)
-                      (range 8)
-                      (map char (range 97 113)))
-   :black-string-map (string-mapping
-                      (range 2)
-                      (range 8)
-                      (map char (range 97 113)))
+   
+   :string-map
+   {:white (string-mapping
+            (range 6 8)
+            (range 8)
+            (map char (range 97 113)))
+    :black (string-mapping
+            (range 2)
+            (range 8)
+            (map char (range 97 113)))}
+
    :turn :white})
 
 (defonce black #{\u265F \u265C \u265E \u265D \u265B \u265A})
@@ -91,7 +94,7 @@
   [:input {:type "range" :value (:width state) :min 250 :max 700
            :style {:width "200px"}
            :on-change (fn [e]
-                        (let [val (.-target.value e)]
+                        (let [val (js/parseInt (.-target.value e))]
                           (swap! app-state assoc :width val :height val)))}])
 
 (defn input-view
@@ -105,20 +108,31 @@
                             (let [c (-> e .-target .-value)]
                               (reset! value c)))}])))
 
+(defn cell-view
+  "todo"
+  [state]
+  )
+
+(defn row-view
+  "todo"
+  [state]
+  )
+
 (defn board-view
   "the board"
   [state]
   [:table {:style (board-style state)}
-   (map-indexed
-    (fn [row-idx row]
-      ^{:key row-idx} [:tr {:style (tr-style state)}
-                   (map-indexed
-                    (fn [col-idx elem]
-                      ^{:key col-idx} [:td {:style (td-style state (:color elem))}
-                                       [:div {:style (piece-style state)} (:piece elem)]
-                                       [:div {:style {:text-align "center"}} "_"]])
-                    row)])
-    (:board state))])
+   [:tbody
+    (map-indexed
+     (fn [row-idx row]
+       ^{:key row-idx} [:tr {:style (tr-style state)}
+                        (map-indexed
+                         (fn [col-idx elem]
+                           ^{:key col-idx} [:td {:style (td-style state (:color elem))}
+                                            [:div {:style (piece-style state)} (:piece elem)]
+                                            [:div {:style {:text-align "center"}} "_"]])
+                         row)])
+     (:board state))]])
 
 (defn app-view
   "main component of our app"
