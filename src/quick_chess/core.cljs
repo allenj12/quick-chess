@@ -62,6 +62,7 @@
 #_(swap! app-state assoc :height 500)
 #_(swap! app-state assoc-in [:board 7 4 :color] "#4286f4")
 #_(reset! app-state init-state)
+#_(swap! app-state assoc :turn :black)
 
 (defn board-style
   [data]
@@ -97,6 +98,20 @@
                         (let [val (js/parseInt (.-target.value e))]
                           (swap! app-state assoc :width val :height val)))}])
 
+(defn handle-text-input
+  "handles the text input given an event"
+  [state value]
+  (fn [e]
+    (let [c (-> e .-target .-value)]
+      (reset! value c)
+      (when (= (count c) 1)
+        (if-let [[row col] (get-in
+                            state
+                            [:string-map (:turn state) c])]
+          (swap!
+           app-state
+           assoc-in [:board row col :color] "#538ab5"))))))
+
 (defn input-view
   "input of commands through strings"
   []
@@ -104,9 +119,7 @@
     (fn [state]
       [:input {:type "text"
                :value @value
-               :on-change (fn [e]
-                            (let [c (-> e .-target .-value)]
-                              (reset! value c)))}])))
+               :on-change (handle-text-input state value)}])))
 
 (defn cell-view
   [state]
