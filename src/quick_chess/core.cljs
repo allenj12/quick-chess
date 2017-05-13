@@ -109,30 +109,24 @@
                               (reset! value c)))}])))
 
 (defn cell-view
-  "todo"
   [state]
-  )
+  (fn [col-idx elem]
+    ^{:key col-idx} [:td {:style (td-style state (:color elem))}
+                     [:div {:style (piece-style state)} (:piece elem)]
+                     [:div {:style {:text-align "center"}} "_"]]))
 
 (defn row-view
-  "todo"
   [state]
-  )
+  (fn [row-idx row]
+    ^{:key row-idx} [:tr {:style (tr-style state)}
+                     (map-indexed (cell-view state) row)]))
 
 (defn board-view
   "the board"
   [state]
   [:table {:style (board-style state)}
    [:tbody
-    (map-indexed
-     (fn [row-idx row]
-       ^{:key row-idx} [:tr {:style (tr-style state)}
-                        (map-indexed
-                         (fn [col-idx elem]
-                           ^{:key col-idx} [:td {:style (td-style state (:color elem))}
-                                            [:div {:style (piece-style state)} (:piece elem)]
-                                            [:div {:style {:text-align "center"}} "_"]])
-                         row)])
-     (:board state))]])
+    (map-indexed (row-view state) (:board state))]])
 
 (defn app-view
   "main component of our app"
