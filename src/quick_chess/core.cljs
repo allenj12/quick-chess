@@ -94,9 +94,18 @@
 (defn piece-style
   [data]
   {:text-align "center"
+   :height (/ (:width data) (count (first (:board data))) 2)
    :font-size (*
                (min (:height data) (:width data))
                0.06)})
+
+(defn selection-char-style
+  [data]
+  {:text-align "center"
+   :height (/ (:width data) (count (first (:board data))) 3)
+   :font-size (*
+               (min (:height data) (:width data))
+               0.03)})
 
 (defn slider-view
   "adjusts the size of the board"
@@ -135,12 +144,14 @@
   (fn [col-idx elem]
     ^{:key col-idx}
     [:td {:style (td-style state (:color elem))}
+     ;;merge implementation isnt that great create our own
+     ;;or reorganize init-state.
      [:div {:style (piece-style state)} (:piece elem)]
      (let [binding (get (merge
                          (get-in state [:string-map :white :pos->str])
                          (get-in state [:string-map :black :pos->str]))
-                        [row-idx col-idx] "_")]
-       [:div {:style {:text-align "center"}} binding])]))
+                        [row-idx col-idx] "")]
+       [:div {:style (selection-char-style state)} binding])]))
 
 (defn row-view
   [state]
