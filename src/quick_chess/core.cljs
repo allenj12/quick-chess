@@ -21,6 +21,8 @@
    (take 8 (cycle [(vec (take 8 (cycle '("#a3854b" "#d3d2cf"))))
                    (vec (take 8 (cycle '("#d3d2cf" "#a3854b"))))]))))
 
+(defonce highlight-color "#538ab5")
+
 (defn string-mapping
   "given a list of rows and cols and a string list
   creates the string mapping"
@@ -134,34 +136,79 @@
            [:string-map (:turn state) :str->pos old])
    (> (count old) (count new))))
 
+(defn out-of-board?
+  "returns all possible locations for a given piece
+  can assume piece is white or black depending on the
+  turn"
+  [[row col]]
+  (or
+   (< row 0)
+   (>= row 8)
+   (< col 0)
+   (>= col 8)))
+
+(defn possible-placements
+  [[row col :as pos] turn]
+  (if (= :black turn)
+    (filter #(not (out-of-board? %)) [[(+ row 2) col]])
+    (filter #(not (out-of-board? %)) [[(- row 2) col]])))
+
+(defn highlight-piece
+  [[row col] color]
+  (fn [state]
+    (assoc-in state [:board row col :color] color)))
+
+(defn highlight-possible-positions
+  [positions color]
+  (fn [state]
+    (let [pos->str
+          (map #(vector %1 %2)
+               positions
+               (map char
+                    (range 97 123)))]
+      (reduce
+       (fn [hmap [[row col] char]]
+         (assoc-in hmap [:board row col]
+                   {:piece char :color color}))
+       state
+       pos->str))))
+
+(defn handle-selection
+  [pos turn]
+  (comp
+   (highlight-possible-positions
+    (possible-placements pos turn) highlight-color)
+   (highlight-piece pos highlight-color)))
+
 (defn select-piece
-  [[row col :as pos]]
-  (swap!
-   app-state
-   assoc-in [:board row col :color] "#538ab5"))
+  [state text-state [row col :as pos]]
+  (swap! text-state
+         assoc :move-to (vec (possible-placements pos (:turn state))))
+  (swap! app-state (handle-selection pos (:turn state))))
 
 (defn handle-text-input
   "handles the text input given an event"
-  [state value]
+  [state text-state]
   (fn [e]
-    (let [c (-> e .-target .-value)
-          old @value
+    (let [str (-> e .-target .-value)
+          old (:text @text-state)
           piece (get-in
                  state
-                 [:string-map (:turn state) :str->pos c])]
-      (reset! value c)
+                 [:string-map (:turn state) :str->pos str])]
+      (swap! text-state assoc :text str)
       (cond
-        piece (select-piece piece)
-        (deselected? state old c) (deselect-piece state old)))))
+        piece (select-piece state text-state piece)
+        (deselected? state old str) (deselect-piece state old)))))
 
 (defn input-view
   "input of commands through strings"
   []
-  (let [value (r/atom "")]
+  (let [text-state (r/atom {:text ""
+                            :move-to []})]
     (fn [state]
       [:input {:type "text"
-               :value @value
-               :on-change (handle-text-input state value)}])))
+               :value (:text @text-state)
+               :on-change (handle-text-input state text-state)}])))
 
 (defn cell-view
   [state row-idx]
