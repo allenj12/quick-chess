@@ -1,5 +1,6 @@
 (ns quick-chess.core
-  (:require [reagent.core :as r]))
+  (:require [reagent.core :as r]
+            [clojure.set :as s]))
 
 (enable-console-print!)
 
@@ -31,28 +32,36 @@
      [y x])))
 
 (def init-state
-  {:width 500
-   :height 500
-   :board
-   (mapv
-    (fn [row-pieces row-colors]
-      (mapv
-       (fn [piece color]
-         {:piece piece :color color})
-       row-pieces row-colors))
-    init-pieces init-colors)
-   
-   :string-map
-   {:white (string-mapping
-            (range 6 8)
-            (range 8)
-            (map char (range 97 113)))
-    :black (string-mapping
-            (range 2)
-            (range 8)
-            (map char (range 97 113)))}
-
-   :turn :white})
+  (let [init-white-bindings
+        (string-mapping
+         (range 6 8)
+         (range 8)
+         (map char (range 97 113)))
+        init-black-bindings
+        (string-mapping
+         (reverse (range 2))
+         (range 8)
+         (map char (range 97 113)))]
+      {:width 500
+       :height 500
+       :board
+       (mapv
+        (fn [row-pieces row-colors]
+          (mapv
+           (fn [piece color]
+             {:piece piece :color color})
+           row-pieces row-colors))
+        init-pieces init-colors)     
+       :string-map
+       {:white {:str->pos
+                init-white-bindings
+                :pos->str
+                (s/map-invert init-white-bindings)}
+        :black {:str-pos
+                init-black-bindings
+                :pos->str
+                (s/map-invert init-black-bindings)}}
+       :turn :white}))
 
 (defonce black #{\u265F \u265C \u265E \u265D \u265B \u265A})
 
@@ -107,7 +116,7 @@
       (when (= (count c) 1)
         (if-let [[row col] (get-in
                             state
-                            [:string-map (:turn state) c])]
+                            [:string-map (:turn state) :str->pos c])]
           (swap!
            app-state
            assoc-in [:board row col :color] "#538ab5"))))))
@@ -122,17 +131,23 @@
                :on-change (handle-text-input state value)}])))
 
 (defn cell-view
-  [state]
+  [state row-idx]
   (fn [col-idx elem]
-    ^{:key col-idx} [:td {:style (td-style state (:color elem))}
-                     [:div {:style (piece-style state)} (:piece elem)]
-                     [:div {:style {:text-align "center"}} "_"]]))
+    ^{:key col-idx}
+    [:td {:style (td-style state (:color elem))}
+     [:div {:style (piece-style state)} (:piece elem)]
+     (let [binding (get (merge
+                         (get-in state [:string-map :white :pos->str])
+                         (get-in state [:string-map :black :pos->str]))
+                        [row-idx col-idx] "_")]
+       [:div {:style {:text-align "center"}} binding])]))
 
 (defn row-view
   [state]
   (fn [row-idx row]
-    ^{:key row-idx} [:tr {:style (tr-style state)}
-                     (map-indexed (cell-view state) row)]))
+    ^{:key row-idx}
+    [:tr {:style (tr-style state)}
+     (map-indexed (cell-view state row-idx) row)]))
 
 (defn board-view
   "the board"
