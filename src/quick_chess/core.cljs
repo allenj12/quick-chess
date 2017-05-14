@@ -57,7 +57,7 @@
                 init-white-bindings
                 :pos->str
                 (s/map-invert init-white-bindings)}
-        :black {:str-pos
+        :black {:str->pos
                 init-black-bindings
                 :pos->str
                 (s/map-invert init-black-bindings)}}
@@ -116,19 +116,43 @@
                         (let [val (js/parseInt (.-target.value e))]
                           (swap! app-state assoc :width val :height val)))}])
 
+(defn deselect-piece
+  "changes the board it its normal no-piece selected
+  state were the board colors are default"
+  [state old]
+  (let [[row col] (get-in
+                   state
+                   [:string-map (:turn state) :str->pos old])
+        color (get-in init-colors [row col])]
+    (swap! app-state assoc-in [:board row col :color] color)))
+
+(defn deselected?
+  "returns true if the input signifies the user deselected a piece"
+  [state old new] 
+  (and
+   (get-in state
+           [:string-map (:turn state) :str->pos old])
+   (> (count old) (count new))))
+
+(defn select-piece
+  [[row col :as pos]]
+  (swap!
+   app-state
+   assoc-in [:board row col :color] "#538ab5"))
+
 (defn handle-text-input
   "handles the text input given an event"
   [state value]
   (fn [e]
-    (let [c (-> e .-target .-value)]
+    (let [c (-> e .-target .-value)
+          old @value
+          piece (get-in
+                 state
+                 [:string-map (:turn state) :str->pos c])]
       (reset! value c)
-      (when (= (count c) 1)
-        (if-let [[row col] (get-in
-                            state
-                            [:string-map (:turn state) :str->pos c])]
-          (swap!
-           app-state
-           assoc-in [:board row col :color] "#538ab5"))))))
+      (cond
+        piece (select-piece piece)
+        (deselected? state old c) (deselect-piece state old)))))
 
 (defn input-view
   "input of commands through strings"
