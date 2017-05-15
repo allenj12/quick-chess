@@ -6,6 +6,12 @@
 
 (println (str "Reloaded: " (.toLocaleTimeString (js/Date.))))
 
+;;-----------------------------------
+;;--INIT STATE AND GLOBAL DEFINITIONS
+(defonce highlight-color "#538ab5")
+
+(defonce default-keybindings (map char (range 97 123)))
+
 (defonce init-pieces
   [[\u265C \u265E \u265D \u265B \u265A \u265D \u265E \u265C]
    [\u265F \u265F \u265F \u265F \u265F \u265F \u265F \u265F]
@@ -21,7 +27,17 @@
    (take 8 (cycle [(vec (take 8 (cycle '("#a3854b" "#d3d2cf"))))
                    (vec (take 8 (cycle '("#d3d2cf" "#a3854b"))))]))))
 
-(defonce highlight-color "#538ab5")
+(defonce init-selection-text
+  (let [keys (take 16 default-keybindings)
+        default-mapping (map vec
+                             (split-at
+                              (/ (count keys) 2) keys))]
+    (vec
+     (concat
+      (reverse
+       default-mapping)
+      (take 4 (cycle [(vec (take 8 (cycle '(""))))]))
+      default-mapping))))
 
 (defn string-mapping
   "given a list of rows and cols and a string list
@@ -38,31 +54,29 @@
         (string-mapping
          (range 6 8)
          (range 8)
-         (map char (range 97 113)))
+         default-keybindings)
         init-black-bindings
         (string-mapping
          (reverse (range 2))
          (range 8)
-         (map char (range 97 113)))]
+         default-keybindings)]
       {:width 500
        :height 500
        :board
        (mapv
-        (fn [row-pieces row-colors]
+        (fn [row-pieces row-colors row-text]
           (mapv
-           (fn [piece color]
-             {:piece piece :color color})
-           row-pieces row-colors))
-        init-pieces init-colors)     
+           (fn [piece color text]
+             {:piece piece
+              :color color
+              :text text})
+           row-pieces row-colors row-text))
+        init-pieces
+        init-colors
+        init-selection-text)     
        :string-map
-       {:white {:str->pos
-                init-white-bindings
-                :pos->str
-                (s/map-invert init-white-bindings)}
-        :black {:str->pos
-                init-black-bindings
-                :pos->str
-                (s/map-invert init-black-bindings)}}
+       {:white init-white-bindings
+        :black init-black-bindings}
        :turn :white}))
 
 (defonce black #{\u265F \u265C \u265E \u265D \u265B \u265A})
@@ -75,6 +89,8 @@
 #_(reset! app-state init-state)
 #_(swap! app-state assoc :turn :black)
 
+;;-------------
+;;--DYNAMIC CSS
 (defn board-style
   [data]
   {:border "1px solid black"
@@ -109,6 +125,8 @@
                (min (:height data) (:width data))
                0.03)})
 
+;;--------------------------------------------------------
+;;--REAGENT/REACT COMPONENTS AND HELPER FUNCTIONS TO THOSE
 (defn slider-view
   "adjusts the size of the board"
   [state]
@@ -117,24 +135,6 @@
            :on-change (fn [e]
                         (let [val (js/parseInt (.-target.value e))]
                           (swap! app-state assoc :width val :height val)))}])
-
-(defn deselect-piece
-  "changes the board it its normal no-piece selected
-  state were the board colors are default"
-  [state old]
-  (let [[row col] (get-in
-                   state
-                   [:string-map (:turn state) :str->pos old])
-        color (get-in init-colors [row col])]
-    (swap! app-state assoc-in [:board row col :color] color)))
-
-(defn deselected?
-  "returns true if the input signifies the user deselected a piece"
-  [state old new] 
-  (and
-   (get-in state
-           [:string-map (:turn state) :str->pos old])
-   (> (count old) (count new))))
 
 (defn out-of-board?
   "returns all possible locations for a given piece
@@ -153,37 +153,82 @@
     (filter #(not (out-of-board? %)) [[(+ row 2) col]])
     (filter #(not (out-of-board? %)) [[(- row 2) col]])))
 
-(defn highlight-piece
+(defn change-color
   [[row col] color]
   (fn [state]
     (assoc-in state [:board row col :color] color)))
 
-(defn highlight-possible-positions
+(defn change-positions-to-color
   [positions color]
   (fn [state]
     (let [pos->str
           (map #(vector %1 %2)
                positions
-               (map char
-                    (range 97 123)))]
+               default-keybindings)]
       (reduce
        (fn [hmap [[row col] char]]
-         (assoc-in hmap [:board row col]
-                   {:piece char :color color}))
+         (update-in hmap [:board row col] assoc :color color :text char))
        state
        pos->str))))
 
+(defn positions-to-default-color
+  [positions]
+  (fn [state]
+    (reduce
+     (fn [hmap [row col]]
+       (let [color (get-in init-colors [row col])]
+         (update-in hmap [:board row col] assoc :color color :text "")))
+     state
+     positions)))
+
+(defn handle-deselection
+  [[row col :as pos] positions]
+  (comp
+   (change-color pos (get-in init-colors [row col]))
+   (positions-to-default-color positions)))
+
+;;can almost certainly be abstracted more
+;;so highlighting and unhighling can use
+;;majority of the same functions
 (defn handle-selection
   [pos turn]
   (comp
-   (highlight-possible-positions
+   (change-positions-to-color
     (possible-placements pos turn) highlight-color)
-   (highlight-piece pos highlight-color)))
+   (change-color pos highlight-color)))
+
+(defn deselect-piece
+  "changes the board it its normal no-piece selected
+  state were the board colors are default"
+  [state text-state old positions]
+  (let [[row col :as pos]
+        (get-in
+         state
+         [:string-map (:turn state) old])
+        color (get-in init-colors [row col])
+        pos-colors (map
+                    (fn [[row col]]
+                      (get-in
+                       state
+                       [:board row col :color]))
+                    positions)]
+    (swap! app-state (handle-deselection pos positions))
+    (swap! text-state assoc :move-to {})))
+
+(defn deselected?
+  "returns true if the input signifies the user deselected a piece"
+  [state old new] 
+  (and
+   (get-in state
+           [:string-map (:turn state) old])
+   (> (count old) (count new))))
 
 (defn select-piece
   [state text-state [row col :as pos]]
   (swap! text-state
-         assoc :move-to (vec (possible-placements pos (:turn state))))
+         assoc :move-to (zipmap
+                         default-keybindings
+                         (vec (possible-placements pos (:turn state)))))
   (swap! app-state (handle-selection pos (:turn state))))
 
 (defn handle-text-input
@@ -194,17 +239,21 @@
           old (:text @text-state)
           piece (get-in
                  state
-                 [:string-map (:turn state) :str->pos str])]
+                 [:string-map (:turn state) str])]
       (swap! text-state assoc :text str)
       (cond
         piece (select-piece state text-state piece)
-        (deselected? state old str) (deselect-piece state old)))))
+        (deselected? state old str) (deselect-piece
+                                     state
+                                     text-state
+                                     old
+                                     (vals (:move-to @text-state)))))))
 
 (defn input-view
   "input of commands through strings"
   []
   (let [text-state (r/atom {:text ""
-                            :move-to []})]
+                            :move-to {}})]
     (fn [state]
       [:input {:type "text"
                :value (:text @text-state)
@@ -215,14 +264,8 @@
   (fn [col-idx elem]
     ^{:key col-idx}
     [:td {:style (td-style state (:color elem))}
-     ;;merge implementation isnt that great create our own
-     ;;or reorganize init-state.
      [:div {:style (piece-style state)} (:piece elem)]
-     (let [binding (get (merge
-                         (get-in state [:string-map :white :pos->str])
-                         (get-in state [:string-map :black :pos->str]))
-                        [row-idx col-idx] "")]
-       [:div {:style (selection-char-style state)} binding])]))
+     [:div {:style (selection-char-style state)} (:text elem)]]))
 
 (defn row-view
   [state]
