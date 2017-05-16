@@ -264,7 +264,8 @@
             (handle-deselection from-pos positions)))
     (swap! text-state assoc
            :move-to {}
-           :piece-str "")))
+           :piece-str ""
+           :text "")))
 
 (defn move-command?
   [{:keys [piece-str move-to text]}]
