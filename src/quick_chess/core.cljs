@@ -79,9 +79,9 @@
         :black init-black-bindings}
        :turn :white}))
 
-(defonce black #{\u265F \u265C \u265E \u265D \u265B \u265A})
+(defonce black? #{\u265F \u265C \u265E \u265D \u265B \u265A})
 
-(defonce white #{\u2659 \u2656 \u2658 \u2657 \u2655 \u2654})
+(defonce white? #{\u2659 \u2656 \u2658 \u2657 \u2655 \u2654})
 
 (defonce app-state (r/atom init-state))
 #_(swap! app-state assoc :height 500)
@@ -125,16 +125,13 @@
                (min (:height data) (:width data))
                0.03)})
 
-;;--------------------------------------------------------
-;;--REAGENT/REACT COMPONENTS AND HELPER FUNCTIONS TO THOSE
-(defn slider-view
-  "adjusts the size of the board"
-  [state]
-  [:input {:type "range" :value (:width state) :min 250 :max 700
-           :style {:width "200px"}
-           :on-change (fn [e]
-                        (let [val (js/parseInt (.-target.value e))]
-                          (swap! app-state assoc :width val :height val)))}])
+;;---------------------------------------------------
+;;--NORMAL HELPER FUNCTIONS TO HELP COMPUTE THE STATE
+(defn color-of-piece
+  [board [row col]]
+  (if (black? (get-in board [row col :piece]))
+    :black
+    :white))
 
 (defn out-of-board?
   "returns all possible locations for a given piece
@@ -181,10 +178,31 @@
      state
      positions)))
 
+(defn move
+  [[from-row from-col] [to-row to-col]]
+  (fn [state]
+    (let [from-map (get-in state
+                           [:board from-row from-col])]
+      ((comp
+         #(update-in % [:board from-row from-col]
+                     assoc
+                     :text ""
+                     :piece "")
+         #(update-in % [:board to-row to-col]
+                     assoc
+                     :text (:text from-map)
+                     :piece (:piece from-map)))
+       state))))
+
+(defn update-string-map
+  [str pos]
+  (fn [state]
+    (assoc-in state [:string-map (:turn state) str] pos)))
+
 (defn handle-deselection
-  [[row col :as pos] positions]
+  [pos positions]
   (comp
-   (change-color pos (get-in init-colors [row col]))
+   (change-color pos (get-in init-colors pos))
    (positions-to-default-color positions)))
 
 ;;can almost certainly be abstracted more
@@ -198,66 +216,105 @@
    (change-color pos highlight-color)))
 
 (defn deselect-piece
-  "changes the board it its normal no-piece selected
-  state were the board colors are default"
-  [state text-state old positions]
-  (let [[row col :as pos]
-        (get-in
-         state
-         [:string-map (:turn state) old])
-        color (get-in init-colors [row col])
-        pos-colors (map
-                    (fn [[row col]]
-                      (get-in
-                       state
-                       [:board row col :color]))
-                    positions)]
+  "changes the board to normal where no-piece is
+  selected state were the board colors are default"
+  [state text-state positions]
+  (let [pos (get-in
+             state
+             [:string-map (:turn state) (:piece-str @text-state)])]
     (swap! app-state (handle-deselection pos positions))
-    (swap! text-state assoc :move-to {})))
+    (swap! text-state assoc
+           :move-to {}
+           :piece-str "")))
 
 (defn deselected?
   "returns true if the input signifies the user deselected a piece"
-  [state old new] 
+  [state {:keys [piece-str]} new] 
   (and
    (get-in state
-           [:string-map (:turn state) old])
-   (> (count old) (count new))))
+           [:string-map (:turn state) piece-str])
+   (> (count piece-str) (count new))))
 
 (defn select-piece
-  [state text-state [row col :as pos]]
+  [{:keys [turn]} text-state pos str]
   (swap! text-state
-         assoc :move-to (zipmap
-                         default-keybindings
-                         (vec (possible-placements pos (:turn state)))))
-  (swap! app-state (handle-selection pos (:turn state))))
+         assoc
+         :move-to (zipmap
+                   default-keybindings
+                   (vec (possible-placements pos turn)))
+         :piece-str str)
+  (swap! app-state (handle-selection pos turn)))
+
+(defn handle-move
+  "deselects the pieces, and moves the piece"
+  [state text-state positions]
+  (let [{:keys [move-to piece-str text]} @text-state
+        from-pos (get-in
+                  state
+                  [:string-map (:turn state) piece-str])
+        to-pos (get move-to
+                    (apply str
+                           (drop
+                            (count piece-str)
+                            text)))]
+    (swap! app-state
+           (comp
+            (update-string-map piece-str to-pos)
+            (move from-pos to-pos)
+            (handle-deselection from-pos positions)))
+    (swap! text-state assoc
+           :move-to {}
+           :piece-str "")))
+
+(defn move-command?
+  [{:keys [piece-str move-to text]}]
+  (and
+   (not (empty? piece-str))
+   (get move-to
+           (apply str
+                  (drop
+                   (count piece-str)
+                   text)))))
 
 (defn handle-text-input
   "handles the text input given an event"
-  [state text-state]
+  [text-state]
   (fn [e]
     (let [str (-> e .-target .-value)
-          old (:text @text-state)
-          piece (get-in
-                 state
-                 [:string-map (:turn state) str])]
+          state @app-state
+          piece-pos (get-in
+                     state
+                     [:string-map (:turn state) str])
+          positions (vals (:move-to @text-state))]
       (swap! text-state assoc :text str)
       (cond
-        piece (select-piece state text-state piece)
-        (deselected? state old str) (deselect-piece
-                                     state
-                                     text-state
-                                     old
-                                     (vals (:move-to @text-state)))))))
+        (move-command? @text-state) (handle-move state text-state positions)
+        piece-pos (select-piece state text-state piece-pos str)
+        (deselected? state @text-state str) (deselect-piece
+                                             state
+                                             text-state
+                                             (vals (:move-to @text-state)))))))
+;;-----------------------
+;;--REAGENT/REACT COMPONENTS
+(defn slider-view
+  "adjusts the size of the board"
+  []
+  [:input {:type "range" :value (:width @app-state) :min 250 :max 700
+           :style {:width "200px"}
+           :on-change (fn [e]
+                        (let [val (js/parseInt (.-target.value e))]
+                          (swap! app-state assoc :width val :height val)))}])
 
 (defn input-view
   "input of commands through strings"
   []
   (let [text-state (r/atom {:text ""
-                            :move-to {}})]
-    (fn [state]
+                            :move-to {}
+                            :piece-str ""})]
+    (fn []
       [:input {:type "text"
                :value (:text @text-state)
-               :on-change (handle-text-input state text-state)}])))
+               :on-change (handle-text-input text-state)}])))
 
 (defn cell-view
   [state row-idx]
@@ -286,13 +343,12 @@
   []
   [:div
    [:div "Size:"]
-   [slider-view @app-state]
+   [slider-view]
    [board-view @app-state]
-   [input-view @app-state]])
+   [input-view]])
 
-;; -------------------------
-;; Initialize app
-
+;; --------------------
+;; --INITIALIZE THE APP
 (defn mount-root []
   (r/render [app-view] (.getElementById js/document "app")))
 
