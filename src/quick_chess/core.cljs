@@ -164,7 +164,10 @@
                default-keybindings)]
       (reduce
        (fn [hmap [[row col] char]]
-         (update-in hmap [:board row col] assoc :color color :text char))
+         (update-in hmap [:board row col]
+                    assoc
+                    :color color
+                    :text char))
        state
        pos->str))))
 
