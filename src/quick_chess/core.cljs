@@ -179,7 +179,9 @@
        (let [color (get-in init-colors [row col])]
          (update-in hmap
                     [:board row col]
-                    assoc :color color :text "")))
+                    assoc
+                    :color color
+                    :text "")))
      state
      positions)))
 
@@ -228,7 +230,8 @@
              state
              [:string-map (:turn state) (:piece-str @text-state)])]
     (swap! app-state (handle-deselection pos positions))
-    (swap! text-state assoc
+    (swap! text-state
+           assoc
            :move-to {}
            :piece-str "")))
 
@@ -268,7 +271,8 @@
             (update-string-map piece-str to-pos)
             (move from-pos to-pos)
             (handle-deselection from-pos positions)))
-    (swap! text-state assoc
+    (swap! text-state
+           assoc
            :move-to {}
            :piece-str ""
            :text "")))
