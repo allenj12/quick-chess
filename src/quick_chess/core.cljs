@@ -174,7 +174,9 @@
     (reduce
      (fn [hmap [row col]]
        (let [color (get-in init-colors [row col])]
-         (update-in hmap [:board row col] assoc :color color :text "")))
+         (update-in hmap
+                    [:board row col]
+                    assoc :color color :text "")))
      state
      positions)))
 
@@ -241,7 +243,8 @@
          assoc
          :move-to (zipmap
                    default-keybindings
-                   (vec (possible-placements pos turn)))
+                   (vec
+                    (possible-placements pos turn)))
          :piece-str str)
   (swap! app-state (handle-selection pos turn)))
 
@@ -289,8 +292,15 @@
           positions (vals (:move-to @text-state))]
       (swap! text-state assoc :text str)
       (cond
-        (move-command? @text-state) (handle-move state text-state positions)
-        piece-pos (select-piece state text-state piece-pos str)
+        (move-command? @text-state) (handle-move
+                                     state
+                                     text-state
+                                     positions)
+        piece-pos (select-piece
+                   state text-
+                   state
+                   piece-pos
+                   str)
         (deselected? state @text-state str) (deselect-piece
                                              state
                                              text-state
